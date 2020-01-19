@@ -2,11 +2,14 @@
 name = "tds"
 version = "0.1.0"
 authors = ["iiran <percivalstr@163.com>"]
+license = "MIT"
+description = "A tool to manage to-do items."
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-postgres = "0.17"
+postgres = { version = "0.17", features = ["with-chrono-0_4"] }
 chrono = "0.4"
 dotenv = "0.15"
+colored = "1.9"
