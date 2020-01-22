@@ -11,5 +11,7 @@ edition = "2018"
 [dependencies]
 postgres = { version = "0.17", features = ["with-chrono-0_4"] }
 chrono = "0.4"
-dotenv = "0.15"
 colored = "1.9"
+toml = "0.5"
+serde = { version = "1.0", features = ["derive"]}
+dirs = "2.0"

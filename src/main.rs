@@ -1,17 +1,17 @@
 use chrono::{DateTime, Utc};
 use colored::*;
-use dotenv::dotenv;
 use postgres::{Client, NoTls};
 use std::collections::VecDeque;
 use std::env;
 
 extern crate colored;
-extern crate dotenv;
 
 mod draw;
 use draw::sbui::*;
 
 mod time;
+
+mod setting;
 
 #[derive(Debug, Copy, Clone)]
 enum ToDoState {
@@ -293,27 +293,15 @@ fn init_todo_table(c: &mut Client, table_name: &str) -> Result<(), String> {
     }
 }
 
-fn get_db_info_from_env() -> (String, String, String, String) {
-    const ENV_HOST: &str = "IIRAN_TODO_DB_HOST";
-    const ENV_PORT: &str = "IIRAN_TODO_DB_PORT";
-    const ENV_USER: &str = "IIRAN_TODO_DB_USER";
-    const ENV_PW: &str = "IIRAN_TODO_DB_PASSWORD";
-    let host = env::var(ENV_HOST).ok().unwrap_or_default();
-    let port = env::var(ENV_PORT).ok().unwrap_or_default();
-    let user = env::var(ENV_USER).ok().unwrap_or_default();
-    let password = env::var(ENV_PW).ok().unwrap_or_default();
-    (host, port, user, password)
-}
-
 fn main() {
+    let cfg = setting::init_config();
+
     let cmd = Command::new_from_args();
 
-    dotenv().ok();
-    let (host, port, user, password) = get_db_info_from_env();
     let mut client = Client::connect(
         format!(
             "host={} port={} user={} password={}",
-            host, port, user, password
+            cfg.db_host, cfg.db_port, cfg.db_user, cfg.db_password
         )
         .as_str(),
         NoTls,
@@ -444,7 +432,7 @@ fn get_todo_due_str(due: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
                 time::get_str_by_time(due_at, now)
             }
         }
-        None => String::from("-")
+        None => String::from("-"),
     }
 }
 
@@ -456,8 +444,9 @@ fn get_todo_due_str(due: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
 #[macro_export]
 macro_rules! filter_wid_char {
     ($s:ident) => {
-        $s = $s.chars()
-        .map(|c| if c.len_utf8() == 1 { c } else { '*' })
-        .collect();
+        $s = $s
+            .chars()
+            .map(|c| if c.len_utf8() == 1 { c } else { '*' })
+            .collect();
     };
 }

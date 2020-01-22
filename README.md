@@ -8,14 +8,18 @@ A tool to manage to-do items.
 
 ## Install
 
-### 0. Prepare Environment
+### 0. vi ~/.config/tds/tds.toml
 
-```bash
-# postgres
-export IIRAN_TODO_DB_HOST=localhost
-export IIRAN_TODO_DB_PORT=5432
-export IIRAN_TODO_DB_USER=yiranfeng
-export IIRAN_TODO_DB_PASSWORD=fyr
+```toml
+db_host = "127.0.0.1"
+db_port = "5432"
+db_user = "iiran"
+db_password = "iiran"
+db_database = "iiran"
+user = "iiran"
+email = "percivalstr@163.com"
+gitlab_user = ""
+gitlab_ac_token = ""
 ```
 
 ### 1. Install by Cargo
@@ -27,6 +31,12 @@ tds --init
 
 ## How to use
 
-```
-tds --help
+```bash
+    l --list         List all todo status.
+    i --inspect      Check todo.
+    a --add          Create new todo.
+    s --set          Update todo status.
+    d --del          Delete todo.
+    v --visual       Visual Mode.
+    p --pull         pull todo from gitlab
 ```

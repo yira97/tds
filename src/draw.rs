@@ -193,8 +193,8 @@ pub mod sbui {
                     assert_eq!(total_width, test_width);
                 }
             }
-
             // build title
+            sw.resize_title(0);
             let title = match sw.build_title() {
                 Err(msg) => panic!(msg),
                 Ok(t) => t,
@@ -244,7 +244,7 @@ pub mod sbui {
 
     const DEFAULT_INIT_WEIGHT: i32 = 100;
     const DEFAULT_DIV_SPACE_PADDING: i32 = 1;
-    const DEFAULT_LABEL_HEIGHT: i32 = 0;
+    const DEFAULT_LABEL_HEIGHT: i32 = 1;
     const DEFAULT_LR_BORDER_SINGLE: &str = "|";
     const DEFAULT_DIV_SPACE_PADDING_OUTER: i32 = 1;
     const DEFAULT_LR_BORDER_CORNER: &str = "+";
@@ -282,6 +282,10 @@ pub mod sbui {
         pub fn resize(&mut self, width: i32) {
             self.width = width;
             self.clean = false;
+        }
+
+        pub fn resize_title(&mut self, v_padd: i32) {
+            self.label_v_padd = v_padd;
         }
 
         pub fn add_tag(&mut self, names: &[&str]) {
@@ -384,7 +388,7 @@ pub mod sbui {
         fn build_title_space_line(&self) -> Result<String, ()> {
             let mut s = String::new();
 
-            for _ in 0..self.label_v_padd + 1 {
+            for _ in 0..self.label_v_padd {
                 if let Ok(row) = self.build_row::<&str>(&[]) {
                     s += row.as_str();
                 }
