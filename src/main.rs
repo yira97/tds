@@ -1,4 +1,4 @@
-use chrono::{DateTime, Datelike, Duration, Utc};
+use chrono::{DateTime, Utc};
 use colored::*;
 use dotenv::dotenv;
 use postgres::{Client, NoTls};
@@ -7,6 +7,11 @@ use std::env;
 
 extern crate colored;
 extern crate dotenv;
+
+mod draw;
+use draw::sbui::*;
+
+mod time;
 
 #[derive(Debug, Copy, Clone)]
 enum ToDoState {
@@ -85,6 +90,15 @@ struct Todo {
 }
 
 #[derive(Debug)]
+struct TodoDisplay {
+    id: i32,
+    title: String,
+    due: String,
+    run: String,
+    state: ToDoState,
+}
+
+#[derive(Debug)]
 struct CreateTodo {
     title: String,
     author: String,
@@ -123,7 +137,7 @@ impl Command {
                     }),
                     // example: a jog 12h
                     ("a", 2) | ("--add", 2) => {
-                        let due = get_time_by_str(args[1].as_str());
+                        let due = time::get_time_by_str(args[1].as_str());
                         Command::Add(CreateTodo {
                             title: args[0].clone(),
                             author: String::from("yiranfeng"),
@@ -303,7 +317,8 @@ fn main() {
         )
         .as_str(),
         NoTls,
-    ).expect("connect error");
+    )
+    .expect("connect error");
 
     if let Err(e) = cmd.run(&mut client) {
         println!("ERROR: {}", e)
@@ -359,6 +374,8 @@ fn list_todo(c: &mut Client, table_name: &str) -> Result<(), String> {
         table_name
     );
 
+    let now = Utc::now();
+
     match c.query(sql.as_str(), &[]) {
         Err(e) => Err(e.to_string()),
         Ok(rs) => Ok({
@@ -370,25 +387,16 @@ fn list_todo(c: &mut Client, table_name: &str) -> Result<(), String> {
 
             for r in rs {
                 let mut title: String = r.get(1);
-                if title.len() > 30 {
-                    let (trim, _) = title.split_at(30);
-                    title = String::from(trim);
-                }
-                title = title
-                    .chars()
-                    .map(|c| if c.len_utf8() == 1 { c } else { '*' })
-                    .collect();
-
+                filter_wid_char!(title);
                 let state: i32 = r.get(8);
-                let todo = Todo {
+                let due_at: Option<DateTime<Utc>> = r.get(7);
+                let created_at: DateTime<Utc> = r.get(5);
+
+                let todo = TodoDisplay {
                     id: r.get(0),
                     title: title,
-                    content: r.get(2),
-                    author: r.get(3),
-                    last_edit_by: r.get(4),
-                    created_at: r.get(5),
-                    updated_at: r.get(6),
-                    due_at: r.get(7),
+                    due: get_todo_due_str(due_at, now),
+                    run: time::get_str_by_time(created_at, now),
                     state: ToDoState::from(state),
                 };
 
@@ -402,118 +410,54 @@ fn list_todo(c: &mut Client, table_name: &str) -> Result<(), String> {
                 };
             }
 
-            let now = Utc::now();
-            println!("------------------------------------------------------"); // 54
-            println!("|              TASK              |   DUE   |   RUN   |"); // task 24, due 11, create 11
-            println!("+----------------------------------------------------+"); // 54
-            println!(
-                "| {:-^50} |",
-                format!(" {}({}) ", ToDoState::NextUp, next.len()).green()
+            let mut win = SymbolWindow::new(70);
+            win.add_tag(&["TASK", "DUE", "RUN", "ID"]);
+            win.change_weight("TASK", |w| 3.0 * w);
+            win.change_weight("ID", |w| 0.5 * w);
+            win.refresh();
+            print_title!(win);
+            print_div!(win, format!("{}({})", ToDoState::NextUp, next.len()), green);
+            print_rows!(win,next, &[title; due; run; id]);
+            print_div!(
+                win,
+                format!("{}({})", ToDoState::InProgress, inprog.len()),
+                yellow
             );
-            for td in next {
-                println!(
-                    "| {task:^30} | {due:^7} | {run:^7} | {id}",
-                    task = td.title,
-                    due = get_todo_due_str(&td, now),
-                    run = get_str_by_time(now, td.created_at),
-                    id = td.id,
-                );
-            }
-            println!(
-                "| {:-^50} |",
-                format!(" {}({}) ", ToDoState::InProgress, inprog.len()).yellow()
+            print_rows!(win,inprog, &[title; due; run; id]);
+            print_div!(
+                win,
+                format!("{}({})", ToDoState::Review, review.len()),
+                purple
             );
-            for td in inprog {
-                println!(
-                    "| {task:^30} | {due:^7} | {run:^7} | {id}",
-                    task = td.title,
-                    due = get_todo_due_str(&td, now),
-                    run = get_str_by_time(now, td.created_at),
-                    id = td.id,
-                );
-            }
-            println!(
-                "| {:-^50} |",
-                format!(" {}({}) ", ToDoState::Review, review.len()).purple()
-            );
-            for td in review {
-                println!(
-                    "| {task:^30} | {due:^7} | {run:^7} | {id}",
-                    task = td.title,
-                    due = get_todo_due_str(&td, now),
-                    run = get_str_by_time(now, td.created_at),
-                    id = td.id,
-                );
-            }
-            println!("------------------------------------------------------");
+            print_rows!(win,review, &[title; due; run; id]);
+            print_foot!(win);
         }),
     }
 }
 
-fn get_todo_due_str(td: &Todo, now: DateTime<Utc>) -> ColoredString {
-    match td.due_at {
+fn get_todo_due_str(due: Option<DateTime<Utc>>, now: DateTime<Utc>) -> String {
+    match due {
         Some(due_at) => {
             if due_at < now {
-                String::from("TIMEOUT").red().blink().bold()
+                String::from("TIMEOUT")
             } else {
-                get_str_by_time(due_at, now).white()
+                time::get_str_by_time(due_at, now)
             }
         }
-        None => String::from("-").white(),
+        None => String::from("-")
     }
 }
 
-const ONE_HOUR_SEC: i64 = 3600;
-const ONE_DAY_SEC: i64 = ONE_HOUR_SEC * 24;
-const ONE_WEEK_SEC: i64 = ONE_DAY_SEC * 7;
-const ONE_MONTH31_SEC: i64 = ONE_DAY_SEC * 31;
-
-fn get_str_by_time(from: DateTime<Utc>, to: DateTime<Utc>) -> String {
-    let (from, to) = if from > to {
-        (to.timestamp(), from.timestamp())
-    } else {
-        (to.timestamp(), from.timestamp())
+//// # example
+//// ```rust
+//// let mut s = String::from("你好啊!");
+//// filter_wid_char!(s);
+//// assert_eq!(s, "!");
+#[macro_export]
+macro_rules! filter_wid_char {
+    ($s:ident) => {
+        $s = $s.chars()
+        .map(|c| if c.len_utf8() == 1 { c } else { '*' })
+        .collect();
     };
-
-    const LESS_HOUR: &str = "<1 h";
-    let diff = to - from;
-    if diff < ONE_HOUR_SEC {
-        String::from(LESS_HOUR)
-    } else if diff < ONE_DAY_SEC {
-        format!("{} h", diff / ONE_HOUR_SEC)
-    } else if diff < ONE_WEEK_SEC {
-        format!("{} d", diff / ONE_DAY_SEC)
-    } else {
-        format!("{} w", diff / ONE_WEEK_SEC)
-    }
-}
-
-// get_time_by_str("2 days") -> now().with_day(2)
-fn get_time_by_str(s: &str) -> Option<DateTime<Utc>> {
-    let after_digit = s.chars().position(|c| !c.is_digit(10));
-    if let Some(pos) = after_digit {
-        let (num, unit) = s.split_at(pos);
-        if let Ok(num) = num.parse::<u32>() {
-            let now = Utc::now();
-            let unit = match unit.trim() {
-                "h" | "hour" | "hours" => ONE_HOUR_SEC,
-                "d" | "day" | "days" => ONE_DAY_SEC,
-                "w" | "week" | "weeks" => ONE_WEEK_SEC,
-                "M" | "month" | "months" => get_sec_in_month(now),
-                _ => 0,
-            };
-            if unit > 0 {
-                return Some(now + Duration::seconds(num as i64 * unit));
-            }
-        }
-    }
-    None
-}
-
-fn get_sec_in_month(t: DateTime<Utc>) -> i64 {
-    if let Some(d) = t.with_month(1) {
-        let d = d.signed_duration_since(t).num_days();
-        return d * ONE_DAY_SEC;
-    }
-    ONE_MONTH31_SEC
 }
