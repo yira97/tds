@@ -13,6 +13,7 @@ pub struct Config {
     pub email: String,
     pub gitlab_user: String,
     pub gitlab_ac_token: String,
+    pub gitlab_domain: String,
 }
 
 const CONFIG_DIR: &str = ".config/tds/";
@@ -27,6 +28,7 @@ user = "iiran"
 email = "percivalstr@163.com"
 gitlab_user = ""
 gitlab_ac_token = ""
+gitlab_domain = "gitlab.com"
 "#;
 
 pub fn init_config() -> Config {
@@ -61,15 +63,30 @@ pub fn init_config() -> Config {
     cfg
 }
 
-fn get_db_info_from_env() -> (String, String, String, String) {
+#[allow(dead_code)] // useful
+fn get_config_from_env() -> Config {
     const ENV_HOST: &str = "TDS_DB_HOST";
     const ENV_PORT: &str = "TDS_DB_PORT";
     const ENV_USER: &str = "TDS_DB_USER";
     const ENV_PW: &str = "TDS_DB_PASSWORD";
     const ENV_DB: &str = "TDS_DB_DB";
+    
     let host = env::var(ENV_HOST).ok().unwrap_or_default();
     let port = env::var(ENV_PORT).ok().unwrap_or_default();
     let user = env::var(ENV_USER).ok().unwrap_or_default();
     let password = env::var(ENV_PW).ok().unwrap_or_default();
-    (host, port, user, password)
+    let database = env::var(ENV_DB).ok().unwrap_or_default();
+
+    Config{
+        db_host :host,
+        db_port: port,
+        db_user: user,
+        db_password: password,
+        db_database: database,
+        user:String::new(),
+        email: String::new(),
+        gitlab_user:String::new(),
+        gitlab_ac_token:String::new(),
+        gitlab_domain:String::new(),
+    }
 }

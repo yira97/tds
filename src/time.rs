@@ -9,9 +9,8 @@ pub fn get_str_by_time(from: DateTime<Utc>, to: DateTime<Utc>) -> String {
     let (from, to) = if from > to {
         (to.timestamp(), from.timestamp())
     } else {
-        (to.timestamp(), from.timestamp())
+        (from.timestamp(), to.timestamp())
     };
-
     const LESS_HOUR: &str = "<1 h";
     let diff = to - from;
     if diff < ONE_HOUR_SEC {
@@ -37,6 +36,7 @@ pub fn get_time_by_str(s: &str) -> Option<DateTime<Utc>> {
                 "d" | "day" | "days" => ONE_DAY_SEC,
                 "w" | "week" | "weeks" => ONE_WEEK_SEC,
                 "M" | "month" | "months" => get_sec_in_month(now),
+                "y" | "year" | "years" => get_sec_in_year(now),
                 _ => 0,
             };
             if unit > 0 {
@@ -49,6 +49,14 @@ pub fn get_time_by_str(s: &str) -> Option<DateTime<Utc>> {
 
 fn get_sec_in_month(t: DateTime<Utc>) -> i64 {
     if let Some(d) = t.with_month(1) {
+        let d = d.signed_duration_since(t).num_days();
+        return d * ONE_DAY_SEC;
+    }
+    ONE_MONTH31_SEC
+}
+
+fn get_sec_in_year(t: DateTime<Utc>) -> i64 {
+    if let Some(d) = t.with_year(1) {
         let d = d.signed_duration_since(t).num_days();
         return d * ONE_DAY_SEC;
     }

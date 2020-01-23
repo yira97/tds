@@ -1,3 +1,5 @@
+use unicode_width::UnicodeWidthChar;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -20,10 +22,26 @@ mod tests {
     }
 }
 
+//// # example
+//// ```rust
+//// let mut s = String::from("你好啊!");
+//// filter_wid_char!(s);
+//// assert_eq!(s, "***!");
+#[macro_export]
+macro_rules! filter_wid_char {
+    ($s:ident) => {
+        $s = $s
+            .chars()
+            .map(|c| if c.len_utf8() == 1 { c } else { '*' })
+            .collect();
+    };
+}
+
 //// # example:
 //// format_dash_line(5);
 //// // output: "-----"
 #[inline]
+#[allow(dead_code)] // useful
 pub fn format_dash_line(len: usize) -> String {
     format!("{:-^1$}", "", len)
 }
@@ -39,10 +57,25 @@ pub fn format_space_line(len: usize) -> String {
 //// if len equal to 0, output len is 0.
 #[inline]
 pub fn format_with_space_wrap(s: &str, max_len: usize) -> String {
-    let s = if s.len() > max_len { &s[..max_len] } else { s };
+    let mut remain = max_len;
+    let mut extra_width = 0;
+    let s: String = s
+        .chars()
+        .fold(Vec::new(), |mut v, c| {
+            if let Some(wid) = UnicodeWidthChar::width(c) {
+                if remain > wid {
+                    v.push(c);
+                    extra_width += wid - 1;
+                    remain -= wid;
+                }
+            };
+            v
+        })
+        .into_iter()
+        .collect();
     let mut res = String::new();
     if max_len > 0 {
-        res += format!("{0: ^1$}", s, max_len).as_str();
+        res += format!("{0: ^1$}", s, max_len - extra_width).as_str();
     }
     res
 }
@@ -150,11 +183,10 @@ pub mod sbui {
         use super::*;
         #[test]
         fn test_symbol_window() {
-            let mut test_width = 40;
-            let mut sw = SymbolWindow::new(test_width);
+            let mut sw = SymbolWindow::new();
 
             // resize
-            test_width = 50;
+            let test_width = 50;
             sw.resize(test_width);
             assert_eq!(sw.get_width(), test_width);
 
@@ -237,7 +269,6 @@ pub mod sbui {
         }
     }
 
-    use super::format_dash_line;
     use super::format_space_line;
     use super::format_with_dash_wrap;
     use super::format_with_space_wrap;
@@ -248,53 +279,65 @@ pub mod sbui {
     const DEFAULT_LR_BORDER_SINGLE: &str = "|";
     const DEFAULT_DIV_SPACE_PADDING_OUTER: i32 = 1;
     const DEFAULT_LR_BORDER_CORNER: &str = "+";
+    const DEFAULT_WINDOW_WIDTH:i32 = 80;
+    const DEFAULT_WINDOW_HEIGHT:i32 = 20;
 
     struct SymbolWindowLabel {
         tag: String,
         weight: i32,
+        wid: i32,
+    }
+
+    impl SymbolWindowLabel{
+        fn new(tag: &str) -> Self {
+            SymbolWindowLabel {
+                tag:String::from(tag),
+                weight:DEFAULT_INIT_WEIGHT,
+                wid:0,
+            }
+        }
     }
 
     pub struct SymbolWindow {
         col_label: Vec<SymbolWindowLabel>,
-        col_width: Vec<i32>,
         width: i32,
         label_v_padd: i32,
-        total_weight: i32,
         clean: bool,
     }
 
     impl SymbolWindow {
-        pub fn new(width: i32) -> Self {
+        pub fn new() -> Self {
             SymbolWindow {
-                width,
+                width:DEFAULT_WINDOW_WIDTH,
                 col_label: Vec::new(),
-                total_weight: 0,
-                col_width: Vec::new(),
                 clean: true,
                 label_v_padd: DEFAULT_LABEL_HEIGHT,
             }
         }
 
+        fn get_total_weight(&self) -> i32 {
+            self.col_label.iter().fold(0, |w, l| w + l.weight)
+        }
+
+        #[allow(dead_code)] // useful
         pub fn get_width(&self) -> i32 {
             self.width
         }
 
+        #[allow(dead_code)] // useful
         pub fn resize(&mut self, width: i32) {
             self.width = width;
             self.clean = false;
         }
 
+        #[allow(dead_code)] // useful
         pub fn resize_title(&mut self, v_padd: i32) {
             self.label_v_padd = v_padd;
         }
 
         pub fn add_tag(&mut self, names: &[&str]) {
             names.iter().for_each(|&name| {
-                self.col_label.push(SymbolWindowLabel {
-                    tag: String::from(name),
-                    weight: DEFAULT_INIT_WEIGHT,
-                });
-                self.total_weight += DEFAULT_INIT_WEIGHT;
+                self.col_label.push(SymbolWindowLabel::new(name));
             });
             self.clean = false;
         }
@@ -307,6 +350,7 @@ pub mod sbui {
             }
         }
 
+        #[allow(dead_code)] // useful
         fn get_weight(&self, name: &str) -> Option<i32> {
             match self.col_label.iter().find(|l| l.tag == name) {
                 Some(l) => Some(l.weight),
@@ -314,24 +358,24 @@ pub mod sbui {
             }
         }
 
+        #[allow(dead_code)] // useful
         pub fn get_weight_ratio(&self, name: &str) -> f64 {
             match self.get_weight(name) {
                 None => 0.0,
-                Some(s) => s as f64 / self.total_weight as f64,
+                Some(s) => s as f64 / self.get_total_weight() as f64,
             }
         }
 
-        fn count_width(&mut self) -> Result<&Vec<i32>, &'static str> {
+        fn count_width(&mut self) -> Result<(), &'static str> {
             let label_count = self.col_label.len();
-            let mut vw = Vec::with_capacity(label_count);
-            let total_f = self.total_weight as f64;
+            let total_f = self.get_total_weight() as f64;
             let valid_space = self.width - 1 - (label_count as i32);
             let mut free_space = valid_space;
             if free_space <= 0 {
                 return Err("no more space");
             }
 
-            self.col_label.iter().for_each(|l| {
+            self.col_label.iter_mut().for_each(|l| {
                 let w = ((l.weight as f64 / total_f) * (valid_space as f64)).round() as i32;
                 let w = if free_space - w >= 0 {
                     free_space -= w;
@@ -341,35 +385,42 @@ pub mod sbui {
                     free_space = 0;
                     last_part
                 };
-                vw.push(w);
+                l.wid = w;
             });
             if free_space > 0 {
-                if let Some(last) = vw.last_mut() {
-                    *last += free_space;
+                if let Some(last) = self.col_label.last_mut() {
+                    last.wid += free_space;
                 }
             }
             self.clean = true;
-            self.col_width = vw;
-            Ok(&self.col_width)
+            Ok(())
         }
 
         //// almost every `mut` call, should following with `refresh` to update the col width
         pub fn refresh(&mut self) {
             if !self.clean {
-                self.count_width();
+                if let Err(_) = self.count_width() {
+                    //refresh failed
+                }
             }
         }
 
-        pub fn get_col_width(&self) -> Result<&Vec<i32>, ()> {
+        pub fn get_col_width(&self) -> Result<Vec<i32>, ()> {
             if !self.clean {
                 // if let Ok(vw) = self.count_width() {
                 //     self.col_width = vw;
                 // }
                 return Err(());
             }
-            Ok(&self.col_width)
+            let wids:Vec<i32> = self.col_label.iter().map(|l|l.wid).collect();
+            Ok(wids)
         }
 
+        //// # example
+        //// ```
+        ////|                          |
+        ////```
+        #[allow(dead_code)] // useful
         fn build_empty_line(&self) -> Result<String, ()> {
             let mut s = String::new();
 
@@ -473,19 +524,22 @@ pub mod sbui {
         where
             F: Fn(f64) -> f64,
         {
-            if let Some(label) = self.col_label.iter_mut().find(|l| l.tag == name) {
-                let rat = label.weight as f64 / self.total_weight as f64;
+            let total_weight = self.get_total_weight() as f64;
+            for label in self.col_label.iter_mut() {
+                if label.tag != name {
+                    continue;
+                }
+                let rat = label.weight as f64 / total_weight;
                 let expect_rat = mul(rat);
                 if expect_rat > 0.0 && expect_rat < 1.0 {
-                    let new_weight = (expect_rat * (self.total_weight as f64)) as i32;
+                    let new_weight = (expect_rat * total_weight) as i32;
                     let diff = new_weight - label.weight;
                     if label.weight + diff > 0 {
-                        self.total_weight += diff;
                         label.weight += diff;
+                        self.clean = false;
                     }
                 }
             }
-            self.clean = false;
         }
     }
 }
