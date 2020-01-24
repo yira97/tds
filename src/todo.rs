@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 
 //// TODO STATE BEG <<<<<<<<<<<<<<<<<<<
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ToDoState {
     NextUp,
     InProgress,

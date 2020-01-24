@@ -61,8 +61,8 @@ COMMAND:
 l --list,                           List all todo status.
 i --inspect <ID>                    Check todo.
 a --add  <title> <due>              Create new todo.
-s --set <ID> <state>                Update todo status.
-d --del <ID>                        Delete todo.
+s --set <state> <ID>...             Update todo status.
+d --del <ID>...                     Delete todo.
 v --visual                          Visual Mode.
 p --pull  <host>                    Pull ToDo from gitlab / github.
 ```
@@ -80,5 +80,5 @@ tds a 'reply email' 2hours
 
 ```bash
 # mark task is cmpleted which id is 1.
-tds s 1 c
+tds s c 1
 ```

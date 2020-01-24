@@ -14,6 +14,14 @@ pub struct Config {
     pub gitlab_user: String,
     pub gitlab_ac_token: String,
     pub gitlab_domain: String,
+    pub show_run_time: bool,
+    pub show_due_time: bool,
+    pub show_content: bool,
+    pub order_by: String,
+    pub task_title_align: String,
+    pub window_width: i32,
+    pub use_gitlab_todo_crate_time: bool,
+    pub show_num_on_div: bool,
 }
 
 const CONFIG_DIR: &str = ".config/tds/";
@@ -29,6 +37,14 @@ email = "percivalstr@163.com"
 gitlab_user = ""
 gitlab_ac_token = ""
 gitlab_domain = "gitlab.com"
+use_gitlab_todo_crate_time = false
+show_run_time = true
+show_due_time = true
+show_content = false
+order_by = "run"
+task_title_align = "mid"
+window_width = 80
+show_num_on_div = true
 "#;
 
 pub fn init_config() -> Config {
@@ -88,5 +104,13 @@ fn get_config_from_env() -> Config {
         gitlab_user:String::new(),
         gitlab_ac_token:String::new(),
         gitlab_domain:String::new(),
+        show_run_time:true,
+        show_due_time:true,
+        show_content:false,
+        order_by:String::from("run"),
+        task_title_align:String::from("mid"),
+        window_width: 80,
+        use_gitlab_todo_crate_time: false,
+        show_num_on_div: true,
     }
 }

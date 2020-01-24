@@ -15,8 +15,8 @@ pub enum Command {
     List,
     Inspect(i32),
     Add(Todo),
-    Set(i32, ToDoState),
-    Del(i32),
+    Set(Vec<i32>, ToDoState),
+    Del(Vec<i32>),
     Visual,
     Help,
     Pull(RemoteToDoAPI),
@@ -51,17 +51,42 @@ impl Command {
                         td.due_at = due;
                         Command::Add(td)
                     }
-                    // example: s 2 c
-                    ("s", 2) | ("--set", 2) => {
-                        if let Ok(id) = get_n_from_charset(args[0].as_str()) {
-                            return Command::Set(id, ToDoState::from(args[1].as_str()));
+                    // example: s c 2
+                    // example: s c 1 3 5 6 7
+                    ("s", i) | ("--set", i) => {
+                        if i == 0 {
+                            return Command::Help;
+                        }
+
+                        let state = ToDoState::from(args[0].as_str());
+                        if state == ToDoState::Unknown {
+                            return Command::Help;
+                        }
+                        let mut vid = vec![];
+                        for i in 1..i {
+                            if let Ok(id) = get_n_from_charset(args[i].as_str()) {
+                               vid.push(id);
+                            }
+                        }
+                        if vid.len() >0 {
+                            return Command::Set(vid,state);
                         }
                         Command::Help
                     }
                     // example: d 2
-                    ("d", 1) | ("--del", 1) => {
-                        if let Ok(id) = get_n_from_charset(args[0].as_str()) {
-                            return Command::Del(id);
+                    // example: d 1 3 5 6 7
+                    ("d", i) | ("--del", i) => {
+                        if i == 0 {
+                            return Command::Help;
+                        }
+                        let mut vid = vec![];
+                        for i in 0..i {
+                            if let Ok(id) = get_n_from_charset(args[i].as_str()) {
+                                vid.push(id);
+                            }
+                        }
+                        if vid.len() > 0 {
+                            return Command::Del(vid);
                         }
                         Command::Help
                     }
@@ -110,13 +135,29 @@ impl Command {
                 Ok(()) => Ok(()),
                 Err(_) => Err("create todo failed"),
             },
-            Command::Set(target, state) => match c.update_todo_state(*target, *state) {
-                Ok(()) => Ok(()),
-                Err(_) => Err("update todo state failed"),
+            Command::Set(targets, state) => {
+                let mut verr = vec![];
+                for target in targets {
+                    if let Err(e) = c.update_todo_state(*target, *state) {
+                        verr.push(e);
+                    }
+                }
+                match verr.len() {
+                    0 => Ok(()),
+                    _i => Err("fail"),
+                }
             },
-            Command::Del(target) => match c.delete_todo(*target) {
-                Ok(()) => Ok(()),
-                Err(_) => Err("delete toto failed"),
+            Command::Del(targets) => {
+                let mut verr = vec![];
+                for target in targets {
+                    if let Err(e) = c.delete_todo(*target) {
+                        verr.push(e);
+                    }
+                }
+                match verr.len() {
+                    0 => Ok(()),
+                    _i => Err("delete toto failed"),
+                }
             },
             Command::Visual => enter_visual(),
             Command::Help => print_help(),
@@ -169,8 +210,8 @@ fn print_help() -> Result<(), &'static str> {
     l --list,                           List all todo status.
     i --inspect <ID>                    Check todo.
     a --add  <title> <due>              Create new todo.
-    s --set <ID> <state>                Update todo status.
-    d --del <ID>                        Delete todo.
+    s --set <state>  <ID>...            Update todo status.
+    d --del <ID>...                     Delete todo.
     v --visual                          Visual Mode.
     p --pull  <host>                    Pull ToDo from gitlab / github.
     "#;
